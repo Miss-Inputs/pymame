@@ -85,9 +85,19 @@ class FileHashes(ContentsHashes):
 	def get_suffix(self) -> str | None:
 		return self.path.suffix[1:].lower()
 
+	def get_crc32(self) -> int:
+		if self._crc32 is not None:
+			return self._crc32
+		return super().get_crc32()
+
+	def get_sha1(self) -> bytes:
+		if self._sha1:
+			return self._sha1
+		return super().get_sha1()
+
 
 class BytesHashes(ContentsHashes):
-	def __init__(self, contents: bytes, suffix: str | None=None) -> None:
+	def __init__(self, contents: bytes, suffix: str | None = None) -> None:
 		self._contents = contents
 		self._suffix = suffix
 

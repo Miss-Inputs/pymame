@@ -1,7 +1,6 @@
 [project]
 name = "pymame"
-version = "0.0.1"
-description = "Python wrapper around MAME frontend commands and XML files"
+dynamic = ["version", "description"]
 authors = [{ name = "Megan Leet" }]
 readme = "README.md"
 requires-python = ">=3.13"

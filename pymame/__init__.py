@@ -1,3 +1,5 @@
+"""Python wrapper around MAME frontend commands and XML files."""
+
 from .commands import MAMEExecutable
 from .elements import DriverStatus, DumpStatus
 from .mame import MAME
@@ -38,3 +40,5 @@ __all__ = [
 	'get_software_list',
 	'get_software_list_async',
 ]
+
+__version__ = '0.0.1'

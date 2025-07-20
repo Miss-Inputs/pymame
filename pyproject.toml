@@ -1,0 +1,24 @@
+[project]
+name = "pymame"
+version = "0.0.1"
+description = "Python wrapper around MAME frontend commands and XML files"
+authors = [{ name = "Megan Leet" }]
+readme = "README.md"
+requires-python = ">=3.13"
+license-files = ["LICENSE"]
+keywords = ["mame"]
+classifiers = [
+	"Development Status :: 3 - Alpha",
+	"Intended Audience :: Developers",
+	"License :: Free for non-commercial use",
+	"Programming Language :: Python",
+	"Topic :: Software Development :: Libraries :: Python Modules",
+	"Typing :: Typed",
+]
+
+[project.urls]
+Home = "https://github.com/Miss-Inputs/pymame"
+Repository = "https://github.com/Miss-Inputs/pymame"
+
+[project.optional-dependencies]
+lxml = ["lxml"]

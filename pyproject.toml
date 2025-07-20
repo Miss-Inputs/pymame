@@ -25,3 +25,7 @@ Repository = "https://github.com/Miss-Inputs/pymame"
 
 [project.optional-dependencies]
 lxml = ["lxml"]
+
+[build-system]
+requires = ["flit_core >=3.12,<4"]
+build-backend = "flit_core.buildapi"

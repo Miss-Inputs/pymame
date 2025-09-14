@@ -43,7 +43,7 @@ def should_ignore_data_area(data_area: DataAreaElement) -> bool:
 
 def data_area_matches(
 	data_area: DataAreaElement, hashes: LazyLoadedHashes, *, use_sha1: bool = False
-):
+) -> bool:
 	roms = [rom for rom in data_area.roms if not should_ignore_rom(rom)]
 	if len(roms) == 1:
 		return rom_matches(roms[0], hashes, use_sha1=use_sha1)

@@ -68,6 +68,7 @@ class CatlistCategory:
 		genre_types = {
 			'Slot Machine': MachineType.Gambling,
 			'Casino': MachineType.Gambling,
+			'Gambling': MachineType.Gambling,
 			'Redemption Game': MachineType.Redemption,
 			'Medal Game': MachineType.MedalGame,
 			'Coin Pusher': MachineType.CoinPusher,

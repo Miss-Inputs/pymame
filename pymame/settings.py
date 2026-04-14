@@ -59,7 +59,7 @@ def try_get_path_from_ini(ini: Mapping[str, str], key: str, ini_name_for_log: An
 
 def read_mame_ini(path: Path) -> Mapping[str, str]:
 	d: dict[str, str] = {}
-	for line in path.read_text().splitlines():
+	for line in path.read_text('utf8').splitlines():
 		line = line.strip()
 		if line.startswith('#') or not line:
 			continue
@@ -80,6 +80,8 @@ def _try_read_ini(name: str, ini_dir: Path, default_ini_dir: Path) -> Mapping[st
 			)
 			return _try_read_ini(name, default_ini_dir, default_ini_dir)
 		return None
+	except UnicodeDecodeError as ex:
+		logger.warning('Could not read mame.ini at %s: %s', path, ex)
 	else:
 		return ini
 

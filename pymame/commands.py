@@ -236,7 +236,13 @@ class MAMEExecutable:
 		return_code = await proc.wait()
 		return return_code == 0
 
-	def _verifyroms_with_info_single(self, basename: 'Basename') -> VerifyromsOutput:
+	def _verifyroms_with_info(self, basenames: Iterable['Basename']) -> Iterator[VerifyromsOutput]:
+		proc = subprocess.run(
+			[self.path, '-verifyroms', *basenames], capture_output=True, text=True, check=False
+		)
+		yield from _parse_verifyroms_output(proc.stdout.splitlines())
+
+	def verifyroms_with_info(self, basename: 'Basename') -> VerifyromsOutput:
 		proc = subprocess.run(
 			[self.path, '-verifyroms', basename], capture_output=True, text=True, check=False
 		)
@@ -248,16 +254,18 @@ class MAMEExecutable:
 			# If more than one basename it will just not display it, and it will not be added to the count of "found" at the end
 			return VerifyromsOutput(basename, None, 'not found!')
 		return next(_parse_verifyroms_output(proc.stdout.splitlines()))
-
-	def _verifyroms_with_info(self, basenames: Iterable['Basename']) -> Iterator[VerifyromsOutput]:
-		proc = subprocess.run(
-			[self.path, '-verifyroms', *basenames], capture_output=True, text=True, check=False
+	
+	async def verifyroms_with_info_async(self, basename: 'Basename') -> VerifyromsOutput:
+		proc = await asyncio.subprocess.create_subprocess_exec(
+			self.path, '-verifyroms', basename, stdout=subprocess.PIPE, stderr=subprocess.PIPE
 		)
-		yield from _parse_verifyroms_output(proc.stdout.splitlines())
+		stdout, stderr = await proc.communicate()
 
-	def verifyroms_with_info(self, basename: 'Basename'):
-		result = self._verifyroms_with_info_single(basename)
-		return result.is_okay, '\n'.join(result.info)
+		if stderr.endswith(b'has no roms!\n'):
+			return VerifyromsOutput(basename, None, 'no roms!')
+		if stderr.endswith(b'not found!\n'):
+			return VerifyromsOutput(basename, None, 'not found!')
+		return next(_parse_verifyroms_output(stdout.decode(errors='ignore').splitlines()))
 
 	def verifyroms_multiple(self, basenames: Iterable['Basename']) -> Sequence['Basename']:
 		"""Note that if basenames is empty, this will check all of them, which might take a while

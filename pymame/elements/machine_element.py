@@ -118,6 +118,16 @@ class DiskElement(ElementWrapper):
 		return self.xml.attrib.get('optional', 'no') == 'yes'
 
 
+class DeviceRef(ElementWrapper):
+	@property
+	def name(self) -> str:
+		return self.xml.attrib['name']
+
+	@property
+	def tag(self) -> str:
+		return self.xml.attrib['tag']
+
+
 class ChipType(StrEnum):
 	CPU = 'cpu'
 	Audio = 'audio'
@@ -746,8 +756,8 @@ class MachineElement(ElementWrapper):
 		return tuple(DiskElement(xml) for xml in self.xml.iter('disk'))
 
 	@cached_property
-	def device_refs(self) -> Sequence[NamedElement]:
-		return tuple(NamedElement(xml) for xml in self.xml.iter('device_ref'))
+	def device_refs(self) -> Sequence[DeviceRef]:
+		return tuple(DeviceRef(xml) for xml in self.xml.iter('device_ref'))
 
 	@cached_property
 	def samples(self) -> Sequence[NamedElement]:

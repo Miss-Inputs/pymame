@@ -138,7 +138,6 @@ class MAMEExecutable:
 
 	# other frontend commands which could be implemented through -listxml and processing MachineElement objects instead:
 	# TODO: Maybe benchmark at some point if any of these would actually be significantly faster
-	# listfull (names of all, or specified machines)
 	# listsource (source files of all, or specified machines)
 	# listclones (machines with cloneof = specified machine)
 	# listbrothers (machines with same source file as specified)

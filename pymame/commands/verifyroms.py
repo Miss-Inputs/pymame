@@ -1,13 +1,13 @@
 """Wraps -verifyroms, -verifysoftlist, and -verifysamples"""
 
 import asyncio
-import dataclasses
 import logging
 import re
 import subprocess
 from collections.abc import AsyncIterator, Iterable, Iterator, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from enum import StrEnum
+from pathlib import Path, PurePath
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -42,17 +42,135 @@ async def verifyroms_async(mame_path: Path, basename: 'Basename') -> bool:
 	return return_code == 0
 
 
+class AuditSubstatus(StrEnum):
+	NeedsRedump = 'NEEDS REDUMP'
+	NoGoodDump = 'NOT FOUND - NO GOOD DUMP KNOWN'
+	NoGoodDumpButFound = 'NO GOOD DUMP KNOWN'
+	BadChecksum = 'INCORRECT CHECKSUM'
+	BadLength = 'INCORRECT LENGTH'
+	NotFound = 'NOT FOUND'
+	Optional = 'NOT FOUND BUT OPTIONAL'
+
+
+@dataclass
+class ROMStatus:
+	basename: 'Basename'
+	"""romset the missing ROM is from, which is usually but not always the basename passed in as an argument (or that is being checked here)"""
+	filename: PurePath
+	size: int | None
+	"""The size the ROM is supposed to be (can be None for disks)"""
+	status: AuditSubstatus
+	found_size: int | None = None
+	"""If status == BadLength, this is the incorrect size of the ROM that was found"""
+
+	# Nah I'm not going to convert all these CRC32s/SHA1s to bytes, I'll just say they're for display purposes
+	expected_crc32: str | None = None
+	"""If status == BadChecksum, this is what the CRC32 is supposed to be"""
+	expected_sha1: str | None = None
+	"""If status == BadChecksum, this is what the SHA1 is supposed to be"""
+	expected_bad_dump: bool | None = None
+	"""If status == BadChecksum, this is True if this ROM is expected to be a known bad dump, otherwise False"""
+	found_crc32: str | None = None
+	found_sha1: str | None = None
+
+	@property
+	def is_best_available(self) -> bool:
+		"""If it is known to be bad or missing, not a lot we can do about it"""
+		return self.status in {
+			AuditSubstatus.NoGoodDump,
+			AuditSubstatus.NoGoodDumpButFound,
+			AuditSubstatus.NeedsRedump,
+		}
+
+
+class AuditStatus(StrEnum):
+	Good = 'good'
+	BestAvailable = 'best available'
+	Bad = 'bad'
+	NotFound = 'not found'
+	NoRoms = 'has no roms'
+
+
 @dataclass
 class VerifyromsOutput:
 	basename: 'Basename'
 	romof: 'Basename | None'
-	status: str
-	info: Sequence[str] = dataclasses.field(default_factory=tuple)
+	"""Parent set/BIOS/etc if any"""
+	status: AuditStatus
+	bad_roms: Sequence[ROMStatus]
 	"""Anything printed for this romset about what particular ROMs are bad/have no good dump etc"""
 
 	@property
 	def is_okay(self) -> bool:
-		return self.status in {'good', 'best available'}
+		return self.status in {AuditStatus.Good, AuditStatus.BestAvailable, AuditStatus.NoRoms}
+
+
+# These regexes are why I regret doing this and feel like I should just be reimplementing the command in Python manually… oh well
+_verifyroms_rom_line_reg = re.compile(
+	r'(?P<basename>\w+)\s*:\s*(?P<filename>.+?)(?:\s+\((?P<size>\d+) bytes\))? - (?P<status>[^()]+)(?:$|( \((?P<parent>\w+?)\)))'
+)
+_verifyroms_checksum_line_reg = re.compile(
+	r'\s*(?:EXPECTED|FOUND):\s*(?:CRC\((?P<crc32>\w{8})\))?(?:\s*SHA1\((?P<sha1>\w+)\))?\s*(?P<flag>BAD_DUMP)?$'
+)
+# I can't even be bothered counting how many characters are supposed to be in a SHA1 anymore
+_verifyroms_line_reg = re.compile(
+	r'romset (?P<basename>\w+)(?:\s+\[(?P<romof>\w+)\]\s*)? is (?P<status>best available|good|bad)$'
+)
+
+
+def _parse_rom_info_lines(lines: Iterable[str]):
+	it = iter(lines)
+	for line in it:
+		line = line.strip()
+		m = _verifyroms_rom_line_reg.match(line)
+		if not m:
+			logger.info('Unrecognized ROM line from -verifyroms: %s', line)
+			continue
+		filename = PurePath(m['filename'])
+		size = int(m['size']) if m['size'] else None
+		parent = m['parent'] or None
+		basename = parent or m['basename']
+		found_size = None
+		found_crc = found_sha = expected_crc = expected_sha = expected_bad = None
+
+		status_raw, _, extra = m['status'].partition(':')
+		status = AuditSubstatus(status_raw)
+		if extra:
+			if status == AuditSubstatus.BadLength:
+				found_size = int(extra.strip().removesuffix(' bytes'))
+			else:
+				logger.info('Unhandled extra info in line %s: "%s"', line, extra)
+		if status == AuditSubstatus.BadChecksum:
+			expected_line = next(it)
+			m = _verifyroms_checksum_line_reg.fullmatch(expected_line)
+			if m:
+				expected_crc = m['crc32'] or None
+				expected_sha = m['sha1'] or None
+				expected_bad = m['flag'] == 'BAD_DUMP'
+			else:
+				logger.info(
+					'Unrecognized expected checksum line from -verifyroms: %s', expected_line
+				)
+			found_line = next(it)
+			m = _verifyroms_checksum_line_reg.fullmatch(found_line)
+			if m:
+				found_crc = m['crc32'] or None
+				found_sha = m['sha1'] or None
+			else:
+				logger.info('Unrecognized found checksum line from -verifyroms: %s', found_line)
+
+		yield ROMStatus(
+			basename,
+			filename,
+			size,
+			status,
+			found_size,
+			expected_crc,
+			expected_sha,
+			expected_bad,
+			found_crc,
+			found_sha,
+		)
 
 
 def _parse_verifyroms_output(lines: Iterable[str]) -> Iterator[VerifyromsOutput]:
@@ -60,28 +178,27 @@ def _parse_verifyroms_output(lines: Iterable[str]) -> Iterator[VerifyromsOutput]
 
 	for line in lines:
 		line = line.strip()
-		match = re.fullmatch(
-			r'romset (?P<basename>\w+)(?:\s+\[(?P<romof>\w+)\]\s*)? is (?P<status>best available|good|bad)$',
-			line,
-		)
+		match = _verifyroms_line_reg.fullmatch(line)
 		if match:
 			# info for each basename is printed before the line for that basename, not after it
-			yield VerifyromsOutput(
-				match['basename'], match['romof'], match['status'], current_info_lines
-			)
+			roms = list(_parse_rom_info_lines(current_info_lines))
 			current_info_lines.clear()
+			status = AuditStatus(match['status'])
+			yield VerifyromsOutput(match['basename'], match['romof'] or None, status, roms)
 		elif 'were OK' not in line:
 			current_info_lines.append(line)
+		else:
+			logger.info('Unrecognized line from -verifyroms: %s', line)
 
 
 def _parse_verifyroms_single(basename: 'Basename', stdout: str, stderr: str):
 	if stderr.endswith('has no roms!\n'):
 		# Devices do this, romless machines still just say "best available"
 		# If more than one basename it will just not display it, and it will not be added to the count of "found" at the end
-		return VerifyromsOutput(basename, None, 'no roms!')
+		return VerifyromsOutput(basename, None, AuditStatus.NoRoms, ())
 	if stderr.endswith('not found!\n'):
 		# If more than one basename it will just not display it, and it will not be added to the count of "found" at the end
-		return VerifyromsOutput(basename, None, 'not found!')
+		return VerifyromsOutput(basename, None, AuditStatus.NotFound, ())
 	return next(_parse_verifyroms_output(stdout.splitlines()))
 
 

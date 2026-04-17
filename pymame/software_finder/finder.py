@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
 	from pymame import Software, SoftwareList, SoftwarePart
@@ -17,11 +17,8 @@ class SoftwareMatchResult:
 		return f'{self.software.id} {self.part.element.name}'
 
 
-_InputType = TypeVar('_InputType')
-
-
-class SoftwareFinder(ABC, Generic[_InputType]):
-	def __init__(self, data: _InputType) -> None:
+class SoftwareFinder[InputType](ABC):
+	def __init__(self, data: InputType) -> None:
 		self.data = data
 
 	@abstractmethod

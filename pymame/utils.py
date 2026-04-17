@@ -2,7 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from configparser import RawConfigParser
 from enum import Enum
-from typing import TypeVar
+from typing import Any
 
 
 def try_parse_int(s: str | None, base: int = 10, *, allow_different_base: bool = True):
@@ -25,10 +25,7 @@ def try_parse_hexbytes(s: str | None, default: bytes | None = None):
 		return default
 
 
-_EnumType = TypeVar('_EnumType', bound=Enum)
-
-
-def try_parse_strenum(s: str | None, enum_type: type[_EnumType]):
+def try_parse_strenum[EnumType: Enum](s: str | None, enum_type: type[EnumType]):
 	if not s:
 		return None
 	try:
@@ -42,7 +39,7 @@ class NoNonsenseConfigParser(RawConfigParser):
 
 	def __init__(
 		self,
-		defaults=None,
+		defaults: Any = None,
 		*,
 		allow_no_value: bool = False,
 		strict: bool = True,
@@ -63,11 +60,7 @@ class NoNonsenseConfigParser(RawConfigParser):
 		return optionstr
 
 
-KT = TypeVar('KT')
-VT = TypeVar('VT')
-
-
-def multidict(tuples: Iterable[tuple[KT, VT]]) -> Mapping[KT, Sequence[VT]]:
+def multidict[KT, VT](tuples: Iterable[tuple[KT, VT]]) -> Mapping[KT, Sequence[VT]]:
 	d = defaultdict(list)
 	for k, v in tuples:
 		d[k].append(v)

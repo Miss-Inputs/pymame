@@ -244,6 +244,7 @@ def get_software(
 		return Software(software_list, software_list.element.software[software], settings)
 	return Software(software_list, software, settings)
 
+
 async def get_software_async(
 	software_list: str | SoftwareList | SoftwareListElement,
 	software: 'str | SoftwareElement',

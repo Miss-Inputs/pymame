@@ -207,7 +207,8 @@ class Machine:
 		return MachineType.Other
 
 	@property
-	def platform(self) -> str | None:
+	def platform(self) -> str:
+		"""Returns what you might say the platform of the game is, intended for organizational purposes when listing several machines into some kind of spreadsheet or database."""
 		if self._platform_prefix:
 			return self._platform_prefix[0]
 		if self._platform_suffix:
@@ -215,11 +216,17 @@ class Machine:
 		# TODO: More advanced platform parsing:
 		# If Game Console, Plug & Play if it has no media slots, or if it is Vii or has JAKKS in the name?
 		# MultiGame / Compilation and Music Game / Dance are probably misplaced plug & play games?
-		if self.machine_type == MachineType.PlugAndPlay:
-			return 'Plug & Play'
-		if self.machine_type == MachineType.MedalGame:
-			return 'Medal Game'
-		return self.machine_type.name
+		match self.machine_type:
+			case MachineType.PlugAndPlay:
+				return 'Plug & Play'
+			case MachineType.MedalGame:
+				return 'Medal Game'
+			case MachineType.CoinPusher:
+				return 'Coin Pusher'
+			case MachineType.LCDHandheld:
+				return 'LCD Handheld'
+			case _:
+				return self.machine_type.name
 
 	@property
 	def is_mechanical(self) -> bool:

@@ -14,12 +14,12 @@ if TYPE_CHECKING:
 	from pymame.typedefs import Basename, SoftwareBasename, SoftwareListBasename
 
 
-def _parse_dat_raw(path: Path):
+def _parse_dat_raw(path: Path, encoding: str = 'iso-8859-1'):
 	# Not at all sure if any .dat files have software info in them?
 	d = {}
 	current_name = None
 	current_info: list[str] = []
-	with path.open('rt', encoding='utf8') as f:
+	with path.open('rt', encoding=encoding, errors='backslashreplace') as f:
 		for line in f.readlines():
 			line = line.strip()
 			if line.startswith('$info'):
@@ -38,8 +38,8 @@ parse_dat = cache(_parse_dat_raw)
 
 
 @alru_cache
-async def parse_dat_async(path: Path) -> Mapping['Basename', str]:
-	return await asyncio.to_thread(_parse_dat_raw, path)
+async def parse_dat_async(path: Path, encoding: str = 'iso-8859-1') -> Mapping['Basename', str]:
+	return await asyncio.to_thread(_parse_dat_raw, path, encoding)
 
 
 class DatsFolder:

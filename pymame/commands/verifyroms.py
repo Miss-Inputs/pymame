@@ -271,7 +271,7 @@ def _parse_verifysoftlist_output(
 	"""This doesn't capture any specific details of what goes on with bad software, just if it is there or not
 
 	Yields:
-		(Software list basename, software basename)"""
+		(Software list basename, software basename) for every software basename that is okay (good or best available)"""
 	# TODO: maybe it should parse that output
 	for line in output.splitlines():
 		line = line.strip()
@@ -282,7 +282,6 @@ def _parse_verifysoftlist_output(
 			yield match['listname'], match['softwarename']
 
 
-# TODO: async versions of these, I guess
 def verifysoftlist(
 	mame_path: Path, softlist_names: Iterable['SoftwareListBasename']
 ) -> Iterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
@@ -293,12 +292,35 @@ def verifysoftlist(
 		check=False,
 		encoding='utf8',
 	)
-	# We don't actually care about the "no romsets found for software list "name"" message from stderr
+	# We don't necessarily care about the "no romsets found for software list "name"" message from stderr (at least for now), and the return code is 5 = any softlist name was not recognized or 2 = any romset was bad
 	yield from _parse_verifysoftlist_output(proc.stdout)
+
+
+async def verifysoftlist_async(
+	mame_path: Path, softlist_names: Iterable['SoftwareListBasename']
+) -> AsyncIterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
+	"""Yields all available software as tuples of (softlist basename, software basename)"""
+	proc = await asyncio.subprocess.create_subprocess_exec(
+		mame_path,
+		'-verifysoftlist',
+		*softlist_names,
+		stdout=subprocess.PIPE,
+		stderr=subprocess.DEVNULL,
+	)
+	stdout, _ = await proc.communicate()
+	for basename in _parse_verifysoftlist_output(stdout.decode('utf8')):
+		yield basename
 
 
 def verifysoftlist_single(
 	mame_path: Path, softlist_name: 'SoftwareListBasename'
 ) -> Iterator['SoftwareBasename']:
 	for _, software_basename in verifysoftlist(mame_path, (softlist_name,)):
+		yield software_basename
+
+
+async def verifysoftlist_single_async(
+	mame_path: Path, softlist_name: 'SoftwareListBasename'
+) -> AsyncIterator['SoftwareBasename']:
+	async for _, software_basename in verifysoftlist_async(mame_path, (softlist_name,)):
 		yield software_basename

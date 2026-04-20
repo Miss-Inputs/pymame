@@ -115,19 +115,27 @@ class MAMEExecutable:
 		return await verifysamples_async(self.path, basename)
 
 	# verifysoftlist
-	def verifysoftlists(self, *softlist_names: 'SoftwareListBasename') -> Iterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
+	def verifysoftlists(
+		self, *softlist_names: 'SoftwareListBasename'
+	) -> Iterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
 		"""If no softlist_names are provided, this will verify all known software lists."""
-		return verifysoftlist(self.path, softlist_names)
+		yield from verifysoftlist(self.path, softlist_names)
 
 	def verifysoftlist(self, softlist_name: 'SoftwareListBasename') -> Iterator['SoftwareBasename']:
-		return verifysoftlist_single(self.path, softlist_name)
-	
-	async def verifysoftlists_async(self, *softlist_names: 'SoftwareListBasename') -> AsyncIterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
-		"""If no softlist_names are provided, this will verify all known software lists."""
-		return verifysoftlist_async(self.path, softlist_names)
+		yield from verifysoftlist_single(self.path, softlist_name)
 
-	async def verifysoftlist_async(self, softlist_name: 'SoftwareListBasename') -> AsyncIterator['SoftwareBasename']:
-		return verifysoftlist_single_async(self.path, softlist_name)
+	async def verifysoftlists_async(
+		self, *softlist_names: 'SoftwareListBasename'
+	) -> AsyncIterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
+		"""If no softlist_names are provided, this will verify all known software lists."""
+		async for t in verifysoftlist_async(self.path, softlist_names):
+			yield t
+
+	async def verifysoftlist_async(
+		self, softlist_name: 'SoftwareListBasename'
+	) -> AsyncIterator['SoftwareBasename']:
+		async for basename in verifysoftlist_single_async(self.path, softlist_name):
+			yield basename
 
 	# listsoftware
 	def getsoftlist(self, name: 'SoftwareListBasename') -> XMLElement:

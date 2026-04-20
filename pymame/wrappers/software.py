@@ -43,6 +43,10 @@ class SoftwareList:
 			Software(self, element, self.settings) for element in self.element.software.values()
 		)
 
+	def get_software(self, name: 'SoftwareBasename') -> 'Software':
+		"""Gets a Software by basename, or raises a KeyError if not found."""
+		return Software(self, self.element.software[name], self.settings)
+
 
 class Software:
 	def __init__(

@@ -47,14 +47,13 @@ class SystemConfig(ElementWrapper):
 	def name(self) -> str:
 		return self.xml.attrib['name']
 
-	# bgfx
+	# bgfx, input, ui_warnings, whatever else
 
 	@property
 	def counters(self) -> Counters | None:
 		counters_element = self.xml.find_first('counters')
 		return Counters(counters_element) if counters_element else None
 
-	# input, ui_warnings
 
 
 class MAMEConfigFile(ElementWrapper):

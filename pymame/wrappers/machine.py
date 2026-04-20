@@ -473,6 +473,14 @@ class Machine:
 		counters = await self._get_counters_async()
 		return counters.tickets if counters else None
 
+	def get_total_coins(self) -> int | None:
+		counters = self._get_counters()
+		return counters.total_coins if counters else None
+
+	async def get_total_coins_async(self) -> int | None:
+		counters = await self._get_counters_async()
+		return counters.total_coins if counters else None
+
 	@property
 	def number_of_players_description(self):
 		if self.category_folder:

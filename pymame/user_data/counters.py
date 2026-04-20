@@ -28,7 +28,8 @@ def get_counters(settings: 'MAMESettings', basename: 'Basename') -> Counters | N
 	else:
 		if not cfg.systems:
 			return None
-		return cfg.systems[0].counters
+		machine_config = next(system for system in cfg.systems if system.name == basename)
+		return machine_config.counters
 
 
 async def get_counters_async(settings: 'MAMESettings', basename: 'Basename') -> Counters | None:
@@ -42,4 +43,5 @@ async def get_counters_async(settings: 'MAMESettings', basename: 'Basename') -> 
 	else:
 		if not cfg.systems:
 			return None
-		return cfg.systems[0].counters
+		machine_config = next(system for system in cfg.systems if system.name == basename)
+		return machine_config.counters

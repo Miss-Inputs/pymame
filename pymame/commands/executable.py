@@ -20,7 +20,9 @@ from .verifyroms import (
 	verifysamples,
 	verifysamples_async,
 	verifysoftlist,
+	verifysoftlist_async,
 	verifysoftlist_single,
+	verifysoftlist_single_async,
 )
 
 if TYPE_CHECKING:
@@ -113,11 +115,19 @@ class MAMEExecutable:
 		return await verifysamples_async(self.path, basename)
 
 	# verifysoftlist
-	def verifysoftlist_all(self) -> Iterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
-		return verifysoftlist(self.path, ())
+	def verifysoftlists(self, *softlist_names: 'SoftwareListBasename') -> Iterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
+		"""If no softlist_names are provided, this will verify all known software lists."""
+		return verifysoftlist(self.path, softlist_names)
 
 	def verifysoftlist(self, softlist_name: 'SoftwareListBasename') -> Iterator['SoftwareBasename']:
 		return verifysoftlist_single(self.path, softlist_name)
+	
+	async def verifysoftlists_async(self, *softlist_names: 'SoftwareListBasename') -> AsyncIterator[tuple['SoftwareListBasename', 'SoftwareBasename']]:
+		"""If no softlist_names are provided, this will verify all known software lists."""
+		return verifysoftlist_async(self.path, softlist_names)
+
+	async def verifysoftlist_async(self, softlist_name: 'SoftwareListBasename') -> AsyncIterator['SoftwareBasename']:
+		return verifysoftlist_single_async(self.path, softlist_name)
 
 	# listsoftware
 	def getsoftlist(self, name: 'SoftwareListBasename') -> XMLElement:

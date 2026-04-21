@@ -250,6 +250,10 @@ class Machine:
 		return self.element.driver.no_sound_hardware if self.element.driver else False
 
 	@property
+	def status(self):
+		return self.element.driver.status if self.element.driver else None
+
+	@property
 	def requires_chds(self) -> bool:
 		"""Hmm... should this include where all <disk> has status == "nodump"? e.g. Dragon's Lair has no CHD dump, would it be useful to say that it requires CHDs because it's supposed to have one but doesn't, or not, because you have a good romset without one
 		I guess I should have a look at how the MAME inbuilt UI does this"""

@@ -17,7 +17,7 @@ from pymame.elements.machine_element import (
 	get_machine_elements_from_file_as_dict,
 	get_machine_elements_from_file_as_dict_async,
 )
-from pymame.support_files import CategoryFolder, HistoryEntry, MAMEInfoEntry
+from pymame.support_files import CategoryFolder, CatName, HistoryEntry, MAMEInfoEntry
 from pymame.support_files.dat import get_dat_folder
 from pymame.user_data import (
 	TimerDBRow,
@@ -44,13 +44,14 @@ class Display:
 		self.element = element
 
 	@property
-	def resolution(self):
+	def resolution(self) -> int | None:
+		"""Total resolution in pixels."""
 		if self.element.width is None or self.element.height is None:
 			return None
 		return self.element.width * self.element.height
 
 	@property
-	def aspect_ratio(self):
+	def aspect_ratio(self) -> Fraction | None:
 		if self.element.width is None or self.element.height is None:
 			return None
 		return Fraction(self.element.width, self.element.height)
@@ -393,7 +394,12 @@ class Machine:
 		time_played = self._timer_db_row
 		return time_played.emulated_time if time_played else datetime.timedelta(0)
 
-	def _get_cats(self, cat: str, *, fallback_parent: bool = False) -> Collection[str]:
+	def get_category(self, cat: CatName, *, fallback_parent: bool = False) -> Collection[str]:
+		"""Gets values for this machine in a specified category file.
+		Arguments:
+			cat: Name of a category file without extension, e.g. "series", "languages"
+			fallback_parent: If true, if this machine does not appear in the category file and we have a parent set, get the value from that parent set instead
+		"""
 		if not self.category_folder:
 			return ()
 		cats = self.category_folder.get_cats(cat, self.basename)
@@ -401,7 +407,7 @@ class Machine:
 			return self.category_folder.get_cats(cat, self.parent_basename)
 		return cats
 
-	def _get_cat(self, cat: str, *, fallback_parent: bool = False) -> str | None:
+	def _get_cat_single(self, cat: CatName, *, fallback_parent: bool = False) -> str | None:
 		if not self.category_folder:
 			return None
 		cat_value = self.category_folder.get_cat(cat, self.basename)
@@ -411,15 +417,15 @@ class Machine:
 
 	@property
 	def series(self):
-		return self._get_cats('series', fallback_parent=True)
+		return self.get_category('series', fallback_parent=True)
 
 	@property
 	def is_mature(self) -> bool | None:
 		"""Returns None if unsure"""
-		in_mature = self._get_cat('mature', fallback_parent=True)
+		in_mature = self._get_cat_single('mature', fallback_parent=True)
 		if in_mature:
 			return True
-		in_not_mature = self._get_cat('not_mature', fallback_parent=True)
+		in_not_mature = self._get_cat_single('not_mature', fallback_parent=True)
 		if in_not_mature:
 			return False
 		if self.catlist:
@@ -438,20 +444,20 @@ class Machine:
 
 	@property
 	def cabinet_types(self):
-		return self._get_cats('cabinets')
+		return self.get_category('cabinets')
 
 	@property
 	def languages(self):
-		return self._get_cats('languages')
+		return self.get_category('languages')
 
 	@property
 	def has_free_play(self) -> bool:
 		# TODO: Also detect by dipswitches or something
-		return bool(self._get_cat('freeplay'))
+		return bool(self._get_cat_single('freeplay'))
 
 	@property
 	def monochrome_type(self) -> str | None:
-		return self._get_cat('monochrome')
+		return self._get_cat_single('monochrome')
 
 	def _get_counters(self) -> 'Counters | None':
 		if self._counters is None:
@@ -491,11 +497,11 @@ class Machine:
 
 	@property
 	def version_added(self) -> str | None:
-		return self._get_cat('version')
+		return self._get_cat_single('version')
 
 	@property
 	def bestgames_rating_name(self) -> str | None:
-		return self._get_cat('bestgames')
+		return self._get_cat_single('bestgames')
 
 	@property
 	def bestgames_rating(self) -> int | None:

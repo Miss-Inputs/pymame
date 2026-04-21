@@ -1,4 +1,5 @@
-"""meow"""
+"""meow
+Loader/parser for category .ini files"""
 
 import asyncio
 import logging
@@ -10,39 +11,56 @@ from typing import TYPE_CHECKING
 
 from async_lru import alru_cache
 
-from pymame.utils import NoNonsenseConfigParser
+from pymame.utils import NoNonsenseConfigParser, listdir_async
 
 if TYPE_CHECKING:
 	from pymame.typedefs import Basename
 
 logger = logging.getLogger(__name__)
 
-CatName = str
+type CatName = str
 """Type alias for string that is the stem of an .ini file (e.g. version, catlist, etc)"""
-CatMapping = Mapping[str, Collection['Basename']]
+type CatMapping = Mapping[str, Collection[Basename]]
 """Section in .ini file -> basenames within that file"""
 
 
-def _get_nplayers(cat_path: Path) -> CatMapping:
+def read_key_value_cat_ini(cat_path: Path, section_name: str | None = None) -> CatMapping:
+	"""
+	Parses a category ini file which contains key/value pairs instead of the usual format (such as nplayers).
+	If `section_name` is blank or None, it will use the first one.
+	"""
 	p = NoNonsenseConfigParser(strict=False, comment_prefixes=';')
+	# Maybe we could have an encoding parameter here, but it's not super necessary
 	p.read(filenames=cat_path)
-	if not p.has_section('NPlayers'):
+	section_name = section_name or p.sections()[0]
+	assert section_name is not None, 'section_name should not be None'
+
+	if not p.has_section(section_name):
 		return {}
 
-	d = defaultdict(list)
-	for item, value in p.items('NPlayers', raw=True):
+	d: defaultdict[str, list[Basename]] = defaultdict(list)
+	for item, value in p.items(section_name, raw=True):
 		d[value].append(item)
 	return d
 
 
-def parse_mame_cat_ini(path: Path) -> CatMapping:
-	# using ASCII because series.ini has borked utf-8 before…
-	with path.open('rt', encoding='ascii') as f:
+async def read_key_value_cat_ini_async(
+	cat_path: Path, section_name: str | None = None
+) -> CatMapping:
+	return await asyncio.to_thread(read_key_value_cat_ini, cat_path, section_name)
+
+
+def read_mame_cat_ini(path: Path, encoding: str = 'ascii') -> CatMapping:
+	"""Parses a category ini (the usual kind with several sections, and basenames as keys + empty values which can appear in multiple sections) into a {section name -> basenames} dict.
+	Using ASCII by default because series.ini has borked utf-8 before…
+	"""
+	with path.open('rt', encoding=encoding) as f:
 		d: defaultdict[str, set[Basename]] = defaultdict(set)
 		current_section = None
 		for line in f:
+			# Not sure if it's better to just use RawConfigParser with allow_no_value = True here
 			line = line.strip()
-			# Don't need to worry about FOLDER_SETTINGS or ROOT_FOLDER sections though I guess this code is gonna put them in there
+			# Don't need to worry about FOLDER_SETTINGS or ROOT_FOLDER sections though I guess this code is gonna put them in there as categories with no basenames in them but eh, that's probably fine
 			if line.startswith(';'):
 				continue
 			if line.startswith('['):
@@ -52,39 +70,43 @@ def parse_mame_cat_ini(path: Path) -> CatMapping:
 		return d
 
 
+async def read_mame_cat_ini_async(path: Path, encoding: str = 'ascii') -> CatMapping:
+	return await asyncio.to_thread(read_mame_cat_ini, path, encoding)
+
+
+def _read_ini_auto(path: Path, encoding: str = 'ascii'):
+	"""Automatically parses a category file and chooses the right format depending on what it is.
+	`encoding` is only used for standard categories for now."""
+	# TODO: Should be smarter about this and autodetect based on attempting to load key/values first, or having a single section (though catver has 2), or something
+	if path.name == 'nplayers.ini':
+		return read_key_value_cat_ini(path, 'NPlayers')
+	return read_mame_cat_ini(path, encoding)
+
+
+async def _read_ini_auto_async(path: Path, encoding: str = 'ascii'):
+	if path.name == 'nplayers.ini':
+		return path, await read_key_value_cat_ini_async(path, 'NPlayers')
+	return path, await read_mame_cat_ini_async(path, encoding)
+
+
 @cache
 def read_cat_folder(cat_folder_path: Path):
-	cats: dict[str, Mapping[str, Collection[Basename]]] = {}  # meow
+	"""Reads an entire directory of category ini files. nplayers is treated specially due to the key/value format."""
+	cats: dict[CatName, CatMapping] = {}  # meow
 
 	for file in cat_folder_path.iterdir():
 		if file.suffix[1:].lower() != 'ini':
 			continue
-		if file.name == 'nplayers.ini':
-			cats['nplayers'] = _get_nplayers(file)
-		else:
-			cats[file.stem] = parse_mame_cat_ini(file)
+		cats[file.stem] = _read_ini_auto(file)
 	return cats
 
 
-def _listdir_sync(path: Path):
-	return list(path.iterdir())
-
-
-async def _listdir_async(path: Path):
-	return await asyncio.to_thread(_listdir_sync, path)
-
-
 @alru_cache
-async def _read_cat_file_async(path: Path):
-	if path.name == 'nplayers.ini':
-		return path, await asyncio.to_thread(_get_nplayers, path)
-	return path, await asyncio.to_thread(parse_mame_cat_ini, path)
-
-
 async def read_cat_folder_async(cat_folder_path: Path):
-	files = await _listdir_async(cat_folder_path)
+	"""Reads an entire directory of category ini files. nplayers is treated specially due to the key/value format."""
+	files = await listdir_async(cat_folder_path)
 	tasks = [
-		asyncio.create_task(_read_cat_file_async(cat_path))
+		asyncio.create_task(_read_ini_auto_async(cat_path))
 		for cat_path in files
 		if cat_path.suffix[1:].lower() == 'ini'
 	]

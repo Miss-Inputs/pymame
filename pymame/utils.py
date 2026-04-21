@@ -1,7 +1,9 @@
+import asyncio
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from configparser import RawConfigParser
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -65,3 +67,12 @@ def multidict[KT, VT](tuples: Iterable[tuple[KT, VT]]) -> Mapping[KT, Sequence[V
 	for k, v in tuples:
 		d[k].append(v)
 	return dict(d)
+
+
+def _listdir_sync(path: Path):
+	return list(path.iterdir())
+
+
+async def listdir_async(path: Path):
+	"""Calling to_thread on iterdir and then on several calls to next() to make an async version of iterdir() seems to be slow, so just get all child paths at once with async instead"""
+	return await asyncio.to_thread(_listdir_sync, path)

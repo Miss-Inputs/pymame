@@ -46,13 +46,14 @@ class NoNonsenseConfigParser(RawConfigParser):
 		allow_no_value: bool = False,
 		strict: bool = True,
 		empty_lines_in_values: bool = True,
+		delimiters: tuple[str, ...] = ('=',),
 		comment_prefixes: str = '#',
 	):
 		# Less of these weird options please, just parse the ini
 		super().__init__(
 			defaults=defaults,
 			allow_no_value=allow_no_value,
-			delimiters='=',
+			delimiters=delimiters,
 			comment_prefixes=comment_prefixes,
 			strict=strict,
 			empty_lines_in_values=empty_lines_in_values,

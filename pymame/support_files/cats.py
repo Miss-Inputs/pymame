@@ -32,7 +32,9 @@ def read_key_value_cat_ini(
 	Parses a category ini file which contains key/value pairs instead of the usual format (such as nplayers).
 	If `section_name` is blank or None, it will use the first one.
 	"""
-	p = NoNonsenseConfigParser(strict=False, comment_prefixes=';')
+	p = NoNonsenseConfigParser(strict=True, comment_prefixes=';', delimiters=('=', ' '))
+	# FOLDER_SETTINGS means we have to allow spaces as a delimiter here. Luckily nothing we want as a key (basenames) contain a space, and the keys in FOLDER_SETTINGS also don't
+	# We can probably get away with strict=True since that just errors if there are duplicate sections or options
 	# Maybe we could have an encoding parameter here, but it's not super necessary
 	files_read = p.read(filenames=cat_path)
 	if not files_read:
@@ -49,7 +51,7 @@ def read_key_value_cat_ini(
 	d: defaultdict[str, list[Basename]] = defaultdict(list)
 	for item, value in p.items(section_name, raw=True):
 		d[value].append(item)
-	return d
+	return dict(d)
 
 
 async def read_key_value_cat_ini_async(
@@ -74,13 +76,13 @@ def read_mame_cat_ini(
 				# Not sure if it's better to just use RawConfigParser with allow_no_value = True here
 				line = line.strip()
 				# Don't need to worry about FOLDER_SETTINGS or ROOT_FOLDER sections though I guess this code is gonna put them in there as categories with no basenames in them but eh, that's probably fine
-				if line.startswith(';'):
+				if not line or line.startswith(';'):
 					continue
 				if line.startswith('['):
 					current_section = line[1:-1]
 				elif current_section:
 					d[current_section].add(line)
-			return d
+			return dict(d)
 	except FileNotFoundError:
 		if check_exists:
 			raise

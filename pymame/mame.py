@@ -4,7 +4,14 @@ from typing import TYPE_CHECKING
 
 from pymame.commands import MAMEExecutable
 from pymame.elements.machine_element import MachineElement, iter_machine_elements_from_file
-from pymame.support_files.cats import CategoryFolder
+from pymame.support_files.cats import (
+	CategoryFolder,
+	CatIniType,
+	CatMapping,
+	CatName,
+	read_cat,
+	read_cat_async,
+)
 from pymame.wrappers.machine import Machine
 from pymame.wrappers.machine import get_machine as _get_machine
 from pymame.wrappers.machine import get_machine_async as _get_machine_async
@@ -77,3 +84,41 @@ class MAME:
 
 	async def get_machine_async(self, basename: 'Basename') -> Machine:
 		return await _get_machine_async(self.settings, basename)
+
+	def get_category(
+		self,
+		name: CatName,
+		cat_type: CatIniType = CatIniType.Auto,
+		section_name: str | None = None,
+		encoding: str = 'ascii',
+		*,
+		check_exists: bool = False,
+	) -> CatMapping:
+		if not self.settings.cat_path:
+			if check_exists:
+				raise FileNotFoundError(
+					'No category path set in MAME settings, cannot get any categories'
+				)
+			return {}
+		path = self.settings.cat_path / f'{name}.ini'
+		return read_cat(path, cat_type, section_name, encoding, check_exists=check_exists)
+
+	async def get_category_async(
+		self,
+		name: CatName,
+		cat_type: CatIniType = CatIniType.Auto,
+		section_name: str | None = None,
+		encoding: str = 'ascii',
+		*,
+		check_exists: bool = False,
+	) -> CatMapping:
+		if not self.settings.cat_path:
+			if check_exists:
+				raise FileNotFoundError(
+					'No category path set in MAME settings, cannot get any categories'
+				)
+			return {}
+		path = self.settings.cat_path / f'{name}.ini'
+		return await read_cat_async(
+			path, cat_type, section_name, encoding, check_exists=check_exists
+		)

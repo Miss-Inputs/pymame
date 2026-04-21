@@ -5,6 +5,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from collections.abc import Collection, Mapping
+from enum import Enum, auto
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -24,14 +25,21 @@ type CatMapping = Mapping[str, Collection[Basename]]
 """Section in .ini file -> basenames within that file"""
 
 
-def read_key_value_cat_ini(cat_path: Path, section_name: str | None = None) -> CatMapping:
+def read_key_value_cat_ini(
+	cat_path: Path, section_name: str | None = None, *, check_exists: bool = False
+) -> CatMapping:
 	"""
 	Parses a category ini file which contains key/value pairs instead of the usual format (such as nplayers).
 	If `section_name` is blank or None, it will use the first one.
 	"""
 	p = NoNonsenseConfigParser(strict=False, comment_prefixes=';')
 	# Maybe we could have an encoding parameter here, but it's not super necessary
-	p.read(filenames=cat_path)
+	files_read = p.read(filenames=cat_path)
+	if not files_read:
+		if check_exists:
+			raise FileNotFoundError(cat_path)
+		return {}
+
 	section_name = section_name or p.sections()[0]
 	assert section_name is not None, 'section_name should not be None'
 
@@ -45,68 +53,137 @@ def read_key_value_cat_ini(cat_path: Path, section_name: str | None = None) -> C
 
 
 async def read_key_value_cat_ini_async(
-	cat_path: Path, section_name: str | None = None
+	cat_path: Path, section_name: str | None = None, *, check_exists: bool = False
 ) -> CatMapping:
-	return await asyncio.to_thread(read_key_value_cat_ini, cat_path, section_name)
+	return await asyncio.to_thread(
+		read_key_value_cat_ini, cat_path, section_name, check_exists=check_exists
+	)
 
 
-def read_mame_cat_ini(path: Path, encoding: str = 'ascii') -> CatMapping:
+def read_mame_cat_ini(
+	path: Path, encoding: str = 'ascii', *, check_exists: bool = False
+) -> CatMapping:
 	"""Parses a category ini (the usual kind with several sections, and basenames as keys + empty values which can appear in multiple sections) into a {section name -> basenames} dict.
 	Using ASCII by default because series.ini has borked utf-8 before…
 	"""
-	with path.open('rt', encoding=encoding) as f:
-		d: defaultdict[str, set[Basename]] = defaultdict(set)
-		current_section = None
-		for line in f:
-			# Not sure if it's better to just use RawConfigParser with allow_no_value = True here
-			line = line.strip()
-			# Don't need to worry about FOLDER_SETTINGS or ROOT_FOLDER sections though I guess this code is gonna put them in there as categories with no basenames in them but eh, that's probably fine
-			if line.startswith(';'):
-				continue
-			if line.startswith('['):
-				current_section = line[1:-1]
-			elif current_section:
-				d[current_section].add(line)
-		return d
+	try:
+		with path.open('rt', encoding=encoding) as f:
+			d: defaultdict[str, set[Basename]] = defaultdict(set)
+			current_section = None
+			for line in f:
+				# Not sure if it's better to just use RawConfigParser with allow_no_value = True here
+				line = line.strip()
+				# Don't need to worry about FOLDER_SETTINGS or ROOT_FOLDER sections though I guess this code is gonna put them in there as categories with no basenames in them but eh, that's probably fine
+				if line.startswith(';'):
+					continue
+				if line.startswith('['):
+					current_section = line[1:-1]
+				elif current_section:
+					d[current_section].add(line)
+			return d
+	except FileNotFoundError:
+		if check_exists:
+			raise
+		return {}
 
 
-async def read_mame_cat_ini_async(path: Path, encoding: str = 'ascii') -> CatMapping:
-	return await asyncio.to_thread(read_mame_cat_ini, path, encoding)
+async def read_mame_cat_ini_async(
+	path: Path, encoding: str = 'ascii', *, check_exists: bool = False
+) -> CatMapping:
+	return await asyncio.to_thread(read_mame_cat_ini, path, encoding, check_exists=check_exists)
 
 
-def _read_ini_auto(path: Path, encoding: str = 'ascii'):
+def _read_ini_auto(path: Path, encoding: str = 'ascii', *, check_exists: bool = False):
 	"""Automatically parses a category file and chooses the right format depending on what it is.
 	`encoding` is only used for standard categories for now."""
 	# TODO: Should be smarter about this and autodetect based on attempting to load key/values first, or having a single section (though catver has 2), or something
 	if path.name == 'nplayers.ini':
-		return read_key_value_cat_ini(path, 'NPlayers')
-	return read_mame_cat_ini(path, encoding)
+		return read_key_value_cat_ini(path, 'NPlayers', check_exists=check_exists)
+	return read_mame_cat_ini(path, encoding, check_exists=check_exists)
 
 
-async def _read_ini_auto_async(path: Path, encoding: str = 'ascii'):
+async def _read_ini_auto_async(path: Path, encoding: str = 'ascii', *, check_exists: bool = False):
 	if path.name == 'nplayers.ini':
-		return path, await read_key_value_cat_ini_async(path, 'NPlayers')
-	return path, await read_mame_cat_ini_async(path, encoding)
+		return await read_key_value_cat_ini_async(path, 'NPlayers', check_exists=check_exists)
+	return await read_mame_cat_ini_async(path, encoding, check_exists=check_exists)
+
+
+class CatIniType(Enum):
+	Sections = auto()
+	"""Normal category file with sections containing basename keys with no values"""
+	KeyValue = auto()
+	"""Key=value, generally containing a single section"""
+	Auto = auto()
+	"""Try to autodetect which type the file is"""
+
+
+def read_cat(
+	path: Path,
+	cat_type: CatIniType = CatIniType.Auto,
+	section_name: str | None = None,
+	encoding: str = 'ascii',
+	*,
+	check_exists: bool = False,
+) -> CatMapping:
+	"""
+	Arguments:
+		section_name: only used for CatIniType.KeyValue
+		encoding: only used for CatIniType.Sections
+		check_exists: Raise an error if `path` was not found
+	"""
+	match cat_type:
+		case CatIniType.Auto:
+			return _read_ini_auto(path, encoding, check_exists=check_exists)
+		case CatIniType.Sections:
+			return read_mame_cat_ini(path, encoding, check_exists=check_exists)
+		case CatIniType.KeyValue:
+			return read_key_value_cat_ini(path, section_name, check_exists=check_exists)
+
+
+async def read_cat_async(
+	path: Path,
+	cat_type: CatIniType = CatIniType.Auto,
+	section_name: str | None = None,
+	encoding: str = 'ascii',
+	*,
+	check_exists: bool = False,
+) -> CatMapping:
+	"""
+	Arguments:
+		section_name: only used for CatIniType.KeyValue
+		encoding: only used for CatIniType.Sections
+	"""
+	match cat_type:
+		case CatIniType.Auto:
+			return await _read_ini_auto_async(path, encoding, check_exists=check_exists)
+		case CatIniType.Sections:
+			return await read_mame_cat_ini_async(path, encoding, check_exists=check_exists)
+		case CatIniType.KeyValue:
+			return await read_key_value_cat_ini_async(path, section_name, check_exists=check_exists)
 
 
 @cache
-def read_cat_folder(cat_folder_path: Path):
+def read_cat_folder(cat_folder_path: Path) -> dict[CatName, CatMapping]:
 	"""Reads an entire directory of category ini files. nplayers is treated specially due to the key/value format."""
 	cats: dict[CatName, CatMapping] = {}  # meow
 
 	for file in cat_folder_path.iterdir():
 		if file.suffix[1:].lower() != 'ini':
 			continue
-		cats[file.stem] = _read_ini_auto(file)
+		cats[file.stem] = _read_ini_auto(file, check_exists=False)
 	return cats
 
 
+async def _read_cat_folder_inner(path: Path):
+	return path, await _read_ini_auto_async(path, check_exists=False)
+
+
 @alru_cache
-async def read_cat_folder_async(cat_folder_path: Path):
+async def read_cat_folder_async(cat_folder_path: Path) -> dict[CatName, CatMapping]:
 	"""Reads an entire directory of category ini files. nplayers is treated specially due to the key/value format."""
 	files = await listdir_async(cat_folder_path)
 	tasks = [
-		asyncio.create_task(_read_ini_auto_async(cat_path))
+		asyncio.create_task(_read_cat_folder_inner(cat_path))
 		for cat_path in files
 		if cat_path.suffix[1:].lower() == 'ini'
 	]

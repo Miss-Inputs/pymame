@@ -50,12 +50,35 @@ class Display:
 		if self.element.width is None or self.element.height is None:
 			return None
 		return self.element.width * self.element.height
+	
+	@property
+	def is_sideways(self) -> bool:
+		if not self.element.rotation:
+			return False
+		return self.element.rotation % 180 != 0
+	
+	@cached_property
+	def _width_height(self) -> tuple[int|None,int|None]:
+		width = self.element.width
+		height = self.element.height
+		return (height, width) if self.is_sideways else (width, height)
+	
+	@property
+	def width(self) -> int|None:
+		"""After applying rotation"""
+		return self._width_height[0]
+	@property
+	def height(self) -> int|None:
+		"""After applying rotation"""
+		return self._width_height[1]
 
 	@property
 	def aspect_ratio(self) -> Fraction | None:
-		if self.element.width is None or self.element.height is None:
+		"""Width:height, after applying rotation"""
+		width, height = self._width_height
+		if width is None or height is None:
 			return None
-		return Fraction(self.element.width, self.element.height)
+		return Fraction(width, height)
 
 
 def _get_machine_element(

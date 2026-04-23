@@ -272,10 +272,47 @@ class StickWays(StrEnum):
 	Strange = 'strange2'
 
 
+class ControlType(StrEnum):
+	"""Defined in src/frontend/mame/infoxml.cpp, but not enforced by the DTD"""
+
+	Joystick = 'joy'
+	"""IPT_JOYSTICK_*, directional joystick/dpad with fixed directions"""
+	AnalogStick = 'stick'
+	"""IPT_AD_STICK_{X,Y,Z}, analog joystick"""
+	Paddle = 'paddle'
+	"""IPT_PADDLE{,_V}, analog paddle (or steering wheel) in one direction"""
+	Pedal = 'pedal'
+	"""IPT_PEDAL{,2,3}, analog pedal or pneumatic button"""
+	Lightgun = 'lightgun'
+	"""IPT_LIGHTGUN_{X,Y}, lightgun or touchscreen (absolute position)"""
+	Positional = 'positional'
+	"""IPT_POSITIONAL{,_V}, some kind of analog thing"""
+	Dial = 'dial'
+	"""IPT_DIAL{,_V}, analog dial (can be turned all the way around unlike a paddle)"""
+	Trackball = 'trackball'
+	"""IPT_TRACKBALL_{X,Y}, analog ball"""
+	Mouse = 'mouse'
+	"""IPT_MOUSE_{X,Y}, mouse (relative position)"""
+	Buttons = 'only_buttons'
+	"""IPT_BUTTON{1-16}, just buttons without being attached to any other input type"""
+	# IPT_COIN{1-12} is an attribute instead
+	Keypad = 'keypad'
+	"""IPT_KEYPAD"""
+	Keyboard = 'keyboard'
+	"""IPT_KEYBOARD"""
+	# IPT_SERVICE, IPT_TILT: Attributes instead
+	Mahjong = 'mahjong'
+	"""Any input classified as mahjong-related"""
+	Hanafuda = 'hanafuda'
+	"""Any input classified as hanafuda-related"""
+	Gambling = 'gambling'
+	"""Any input classified as gambling-related"""
+
+
 class ControlElement(ElementWrapper):
 	@property
 	def type(self) -> str:
-		# The DTD does not define a list of control types, so we also shall not
+		"""The DTD does not define a list of control types, so we shall not enforce it by returning ControlType"""
 		return self.xml.attrib['type']
 
 	@property
@@ -283,7 +320,8 @@ class ControlElement(ElementWrapper):
 		return try_parse_int(self.xml.attrib.get('buttons')) or 0
 
 	@property
-	def joystick_ways(self) -> int | None:
+	def n_joystick_ways(self) -> int | None:
+		"""Joystick ways as an integer, which it sometimes isn't, see also StickWays"""
 		return try_parse_int(self.xml.attrib.get('ways'))
 
 	@property
@@ -293,23 +331,27 @@ class ControlElement(ElementWrapper):
 
 	@property
 	def is_reversed(self) -> bool:
+		"""Only true for analog control types"""
 		return self.xml.attrib.get('reverse', 'no') == 'yes'
 
 	@property
 	def minimum_analog_value(self) -> int | None:
+		"""Only for analog control types"""
 		return try_parse_int(self.xml.attrib.get('minimum'))
 
 	@property
 	def maximum_analog_value(self) -> int | None:
+		"""Only for analog control types"""
 		return try_parse_int(self.xml.attrib.get('maximum'))
 
 	@property
 	def sensitivity(self) -> int | None:
+		"""Only for analog control types"""
 		return try_parse_int(self.xml.attrib.get('sensitivity'))
 
 	@property
 	def keydelta(self) -> int | None:
-		"""Something for analog controls?"""
+		"""Only for analog control types, whatever this is"""
 		return try_parse_int(self.xml.attrib.get('keydelta'))
 
 	@property
@@ -543,11 +585,43 @@ class FeatureStatus(StrEnum):
 	Unemulated = 'unemulated'
 
 
+class FeatureType(StrEnum):
+	"""Defined in src/emu/device.h"""
+
+	# Functionality
+	Protection = 'protection'
+	Timing = 'timing'
+	# Graphics
+	Graphics = 'graphics'
+	Palette = 'palette'
+	# Sound
+	Sound = 'sound'
+	# Capture/media output
+	Capture = 'capture'
+	Camera = 'camera'
+	Microphone = 'microphone'
+	# Control
+	Controls = 'controls'
+	Keyboard = 'keyboard'
+	Mouse = 'mouse'
+	# Media
+	Media = 'media'
+	Disk = 'disk'
+	Printer = 'printer'
+	Tape = 'tape'
+	Punch = 'punch'
+	Drum = 'drum'
+	ROM = 'rom'
+	# Network/comms
+	Communications = 'comms'
+	LAN = 'lan'
+	WAN = 'wan'
+
+
 class FeatureElement(ElementWrapper):
 	@property
 	def type(self) -> str:
-		# valid types are specified in the dtd, but maybe we don't want to impose that requirement as stuff is added in new MAME versions
-		# <!ATTLIST feature type (protection|timing|graphics|palette|sound|capture|camera|microphone|controls|keyboard|mouse|media|disk|printer|tape|punch|drum|rom|comms|lan|wan) #REQUIRED>
+		"""The DTD does enforce that this is one of FeatureType, but we don't want to necessarily use that here as it might be more prone to breaking with future MAME versions"""
 		return self.xml.attrib['type']
 
 	@property

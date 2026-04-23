@@ -13,6 +13,7 @@ from pymame.elements.machine_element import (
 	ChipElement,
 	ChipType,
 	DisplayElement,
+	DisplayType,
 	MachineElement,
 	get_machine_elements_from_file_as_dict,
 	get_machine_elements_from_file_as_dict_async,
@@ -189,6 +190,34 @@ class Machine:
 				return suffix, machine_type
 		return None
 
+	def _machine_type_from_catlist(self, catlist: CatlistCategory) -> MachineType:
+		"""More nuanced catlist shenaniganery"""
+		catlist_type = catlist.machine_type
+		if catlist_type != MachineType.Other:
+			return catlist_type
+
+		maybe_dedicated = not self.element.media_slots and not self.element.software_lists
+		# TODO: Certain software lists (vii, any jakks_gk*) would still indicate a plug & play system
+		# Since this is just a heuristic though, err on the side of false negative
+		if maybe_dedicated:
+			if catlist.category.startswith('Game Console /'):
+				return MachineType.PlugAndPlay
+			if catlist.category in {
+				'Handheld / Home Videogame',
+				'Handheld / Home Videogame Console',
+			}:
+				return MachineType.Handheld
+			if catlist.category == 'Handheld / Electronic Game':
+				screen_types = {display.element.type for display in self.displays}
+				# DisplayType.LCD is not the kind of LCD we're talking about here
+				return (
+					MachineType.Handheld
+					if DisplayType.Raster in screen_types or DisplayType.LCD in screen_types
+					else MachineType.LCDHandheld
+				)
+
+		return MachineType.Other
+
 	@property
 	def machine_type(self) -> MachineType:
 		if self._platform_prefix:
@@ -197,15 +226,18 @@ class Machine:
 			return self._platform_suffix[1]
 		if self.element.is_bios:
 			return MachineType.BIOS
-		if self.catlist:
-			return self.catlist.machine_type
+		if self.element.is_device:
+			return MachineType.Device
 
-		if self._is_arcade:
-			return MachineType.Arcade
+		if self.catlist and self.catlist.machine_type != MachineType.Unknown:
+			return self._machine_type_from_catlist(self.catlist)
+
 		if self.is_mechanical:
 			return MachineType.Mechanical
+		if self._is_arcade:
+			return MachineType.Arcade
 
-		return MachineType.Other
+		return MachineType.Unknown
 
 	@property
 	def platform(self) -> str:
@@ -214,9 +246,6 @@ class Machine:
 			return self._platform_prefix[0]
 		if self._platform_suffix:
 			return self._platform_suffix[0]
-		# TODO: More advanced platform parsing:
-		# If Game Console, Plug & Play if it has no media slots, or if it is Vii or has JAKKS in the name?
-		# MultiGame / Compilation and Music Game / Dance are probably misplaced plug & play games?
 		match self.machine_type:
 			case MachineType.PlugAndPlay:
 				return 'Plug & Play'

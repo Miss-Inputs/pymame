@@ -146,7 +146,7 @@ class CatlistCategory:
 		if self.is_arcade:
 			return self._components[0]
 		if self._is_plug_and_play:
-			if self._components[1] == "Plug n' Play TV Game":
+			if self._components[1] == "Plug n' Play TV Game" and len(self._components) > 2:
 				return self._components[2]
 			if self._components[0] != 'Handheld':
 				return self._components[0]

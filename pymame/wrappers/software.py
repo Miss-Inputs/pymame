@@ -10,7 +10,7 @@ from pymame.elements.software_list_element import (
 	get_software_list_element_from_file_async,
 )
 from pymame.support_files.dat import get_dat_folder
-from pymame.user_data import TimerDBRow, try_load_timer_db
+from pymame.user_data import TimerDBEntry, try_load_timer_db
 from pymame.utils import multidict
 
 if TYPE_CHECKING:
@@ -171,7 +171,7 @@ class Software:
 		return history
 
 	@cached_property
-	def _timer_db_row(self) -> TimerDBRow | None:
+	def _timer_db_row(self) -> TimerDBEntry | None:
 		if not self.settings.timer_db_path:
 			return None
 		db = try_load_timer_db(self.settings.timer_db_path)

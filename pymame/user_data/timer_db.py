@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -6,12 +7,14 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from async_lru import alru_cache
+
 if TYPE_CHECKING:
 	from pymame.typedefs import Basename, SoftwareBasename, SoftwareListBasename
 
 
 @dataclass
-class TimerDBRow:
+class TimerDBEntry:
 	total_time: timedelta
 	play_count: int
 	emulated_time: timedelta
@@ -27,29 +30,43 @@ class TimerDBRow:
 
 @dataclass
 class TimerDB:
-	systems: Mapping['Basename', TimerDBRow]
-	software: Mapping[tuple['SoftwareListBasename', 'SoftwareBasename'], TimerDBRow]
+	systems: Mapping['Basename', TimerDBEntry]
+	software: Mapping[tuple['SoftwareListBasename', 'SoftwareBasename'], TimerDBEntry]
 
 
-@cache
-def load_timer_db(db_path: Path) -> TimerDB:
+def _load_timer_db(db_path: Path) -> TimerDB:
 	with sqlite3.connect(db_path) as db:
 		db.row_factory = sqlite3.Row
-		drivers: dict[Basename, TimerDBRow] = {}
-		software: dict[tuple[SoftwareListBasename, SoftwareBasename], TimerDBRow] = {}
+		drivers: dict[Basename, TimerDBEntry] = {}
+		software: dict[tuple[SoftwareListBasename, SoftwareBasename], TimerDBEntry] = {}
 		for row in db.execute('SELECT * FROM timer'):
 			if row['software']:
 				softlist = row['softlist']
 				software[
 					row['driver'], f'{softlist}:{row["software"]}' if softlist else row['software']
-				] = TimerDBRow.from_db_row(row)
+				] = TimerDBEntry.from_db_row(row)
 			else:
-				drivers[row['driver']] = TimerDBRow.from_db_row(row)
+				drivers[row['driver']] = TimerDBEntry.from_db_row(row)
 		return TimerDB(drivers, software)
+
+
+load_timer_db = cache(_load_timer_db)
+
+
+@alru_cache
+async def load_timer_db_async(db_path: Path) -> TimerDB:
+	return await asyncio.to_thread(_load_timer_db, db_path)
 
 
 def try_load_timer_db(db_path: Path) -> TimerDB | None:
 	try:
 		return load_timer_db(db_path)
+	except FileNotFoundError:
+		return None
+
+
+async def try_load_timer_db_async(db_path: Path) -> TimerDB | None:
+	try:
+		return await load_timer_db_async(db_path)
 	except FileNotFoundError:
 		return None

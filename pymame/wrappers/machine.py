@@ -21,7 +21,7 @@ from pymame.elements.machine_element import (
 from pymame.support_files import CategoryFolder, CatName, HistoryEntry, MAMEInfoEntry
 from pymame.support_files.dat import get_dat_folder
 from pymame.user_data import (
-	TimerDBRow,
+	TimerDBEntry,
 	get_counters,
 	get_counters_async,
 	get_favourites,
@@ -130,10 +130,9 @@ class Machine:
 		self.bios = bios
 
 		self._executable = MAMEExecutable(settings)
-		# TODO: This is a bit naughty because get_dat_folder is a sync function and we call it regardless of whether we're sync or async
 		self._dat_folder = get_dat_folder(settings.dats_path) if settings.dats_path else None
 		self._counters: Counters | None = None
-		self._timer_db_row: TimerDBRow | None = None
+		self._timer_db_row: TimerDBEntry | None = None
 		self._lock = asyncio.Lock()
 
 	@property
@@ -582,7 +581,7 @@ class Machine:
 			for device_ref in self.element.device_refs
 		]
 
-	def _get_timer_db_row(self) -> TimerDBRow | None:
+	def _get_timer_db_row(self) -> TimerDBEntry | None:
 		# TODO: This needs an async version
 		if not self._timer_db_row and self.settings.timer_db_path:
 			db = try_load_timer_db(self.settings.timer_db_path)

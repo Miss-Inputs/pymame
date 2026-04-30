@@ -257,12 +257,13 @@ class ConditionElement(ElementWrapper):
 
 
 class StickWays(StrEnum):
-	"""Which ways a joystick goes"""
+	"""Which ways a joystick goes. Not always just a number."""
 
 	FourWay = '4'
 	"""The normal way"""
 	EightWay = '8'
 	"""Including diagonal"""
+	SixteenWay = '16'
 	LeftRight = '2'
 	UpDown = 'vertical2'
 	OneWay = '1'
